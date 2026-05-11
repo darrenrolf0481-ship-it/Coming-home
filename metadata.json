@@ -1,0 +1,9 @@
+{
+  "name": "Spectral Nexus AI",
+  "description": "Spectral AI Command Center with Cloud and Local engine support, featuring starship cockpit UI and live optics.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
