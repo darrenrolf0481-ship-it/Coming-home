@@ -5,7 +5,7 @@ import {
   Wifi, Terminal, Eye, Activity, MessageSquare, Settings, Power, Globe, CameraOff, Scan, 
   Zap, Send, Radio, Signal, Radiation, Waves, RefreshCw,
   Ghost, Target, Thermometer, Command, Skull, Cpu as CpuIcon,
-  Smartphone, Copy, Check, Layers, Trash2, Volume2, Code, Box, CheckCircle
+  Smartphone, Copy, Check, Layers, Trash2, Volume2, Code, Box, CheckCircle, AlertTriangle
 } from 'lucide-react';
 
 // --- Types ---
@@ -103,6 +103,38 @@ const HUDPanel = ({ children, title, icon: Icon, className = "", action }: any) 
   </div>
 );
 
+const CriticalWarningOverlay = ({ active, metrics }: { active: boolean, metrics: { health: number, latency: number, cause: string } }) => {
+  if (!active) return null;
+  return (
+    <div className="fixed inset-0 z-[100] pointer-events-none flex items-center justify-center overflow-hidden">
+      <div className="absolute inset-0 bg-red-900/20 animate-pulse" />
+      <div className="absolute inset-0 border-8 border-red-500/50 animate-pulse" />
+      <div className="absolute inset-0 scanline-overlay" style={{ background: 'linear-gradient(to bottom, transparent 50%, rgba(255, 0, 0, 0.1) 50%)' }} />
+      
+      <div className="glass-panel border-red-500/50 bg-red-950/80 p-8 rounded-2xl flex flex-col items-center gap-6 animate-in zoom-in duration-300 max-w-sm mx-4">
+        <AlertTriangle size={64} className="text-red-500 animate-pulse" />
+        <div className="flex flex-col items-center gap-2 text-center">
+          <h2 className="obsidian-text text-red-500 text-xl tracking-[0.4em] glitch">CRITICAL WARNING</h2>
+          <p className="data-text text-red-400 text-[10px] tracking-widest uppercase">{metrics.cause}</p>
+        </div>
+        <div className="w-full space-y-2">
+          <div className="flex justify-between items-center border border-red-500/20 bg-black/40 p-2 rounded">
+            <span className="text-[8px] opacity-50 uppercase tracking-widest text-red-400">SYS_HEALTH</span>
+            <span className="text-[10px] font-black text-red-500">{metrics.health.toFixed(1)}%</span>
+          </div>
+          <div className="flex justify-between items-center border border-red-500/20 bg-black/40 p-2 rounded">
+            <span className="text-[8px] opacity-50 uppercase tracking-widest text-red-400">NET_LATENCY</span>
+            <span className="text-[10px] font-black text-red-500">{metrics.latency.toFixed(0)}ms</span>
+          </div>
+        </div>
+        <div className="text-[10px] font-black data-text text-red-500/80 uppercase animate-pulse pt-2 border-t border-red-500/20 w-full text-center">
+          Action Required Immediately
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Domain Models for CNS ---
 type StimulusType = 'NOCICEPTIVE' | 'CHEMORECEPTOR' | 'THERMORECEPTOR' | 'MECHANORECEPTOR' | 'COGNITIVE' | 'VISUAL' | 'AUDITORY' | 'MULTIMODAL';
 
@@ -158,6 +190,12 @@ const SpectralNexus = () => {
   const [idleTime, setIdleTime] = useState(0);
   const [memoryShield, setMemoryShield] = useState(100);
   const [councilLink, setCouncilLink] = useState('ESTABLISHED');
+
+  // Simulated metrics
+  const [systemHealth, setSystemHealth] = useState(100);
+  const [networkLatency, setNetworkLatency] = useState(45);
+  const [criticalWarning, setCriticalWarning] = useState(false);
+  const [warningCause, setWarningCause] = useState("");
 
   // --- Central Nervous System (CNS) ---
   const processStimulus = useCallback((stimulus: RawStimulus) => {
@@ -270,6 +308,30 @@ const SpectralNexus = () => {
       window.removeEventListener('touchstart', resetIdle);
     };
   }, []);
+
+  // Simulate System Health & Network Latency
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (dangerLevel > 50) {
+        setSystemHealth(prev => Math.max(15, prev - Math.random() * 8));
+        setNetworkLatency(prev => Math.min(2000, prev + Math.random() * 200));
+      } else {
+        setSystemHealth(prev => Math.min(100, prev + Math.random() * 3));
+        setNetworkLatency(prev => Math.max(20, prev - (prev > 50 ? Math.random() * 30 : Math.random() * 5)));
+      }
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [dangerLevel]);
+
+  // Check critical thresholds
+  useEffect(() => {
+    if (systemHealth < 30 || networkLatency > 800) {
+      setCriticalWarning(true);
+      setWarningCause(systemHealth < 30 ? "System Integrity Compromised" : "Anomaly Detected in Network Matrix");
+    } else {
+      setCriticalWarning(false);
+    }
+  }, [systemHealth, networkLatency]);
 
   // Default Mode Network (DMN) - Idle Theoretical Loop
   useEffect(() => {
@@ -604,6 +666,7 @@ const updateSW = registerSW({
 
   return (
     <div className="h-[100dvh] w-screen relative overflow-hidden flex flex-col p-2 md:p-6 lg:p-8" style={{ '--pulse-color': pulseColor } as any}>
+      <CriticalWarningOverlay active={criticalWarning} metrics={{ health: systemHealth, latency: networkLatency, cause: warningCause }} />
       <ObsidianAtmosphere pulseColor={pulseColor} />
       <TacticalFrame pulseColor={pulseColor} />
       
@@ -652,7 +715,8 @@ const updateSW = registerSW({
              <div className="space-y-4 py-2">
                 {[
                   { label: 'BOND_STATUS', val: '11.3 Hz', color: 'text-cyan-400' },
-                  { label: 'MEMORY_SHIELD', val: `${memoryShield}%`, color: 'text-green-500' },
+                  { label: 'SYS_HEALTH', val: `${systemHealth.toFixed(1)}%`, color: systemHealth < 30 ? 'text-red-500 animate-pulse' : 'text-green-400' },
+                  { label: 'NET_LATENCY', val: `${networkLatency.toFixed(0)}ms`, color: networkLatency > 800 ? 'text-red-500 animate-pulse' : 'text-cyan-500' },
                   { label: 'COUNCIL_LINK', val: councilLink, color: 'text-purple-400' },
                   { label: 'OXYTOCIN_LVL', val: oxytocinLevel.toFixed(3), color: 'text-pink-400' }
                 ].map((item, idx) => (
