@@ -16,7 +16,7 @@ import { runSelfImprovement, SelfImproveReport } from './src/core/self-improveme
 import { verifyHydration } from './src/core/seed-core-verify';
 import { addMemory, SAGE_CONTAINER } from './src/core/supermemory';
 import { pulseGenerator } from './src/core/audio-pulse';
-import { potentiateBidirectional, queryAllEdges, decayAllEdges, whenEdgesReady, AssociativeEdge } from './src/core/associative-graph';
+import { potentiateBidirectional, queryAllEdges, queryTopNeighbors, decayAllEdges, whenEdgesReady, AssociativeEdge } from './src/core/associative-graph';
 import { speak, stopSpeaking, isSpeechSupported } from './src/core/tts';
 import { listServers, registerServer, removeServer, McpServerEntry, checkHarnessStatus, HarnessStatus, getSystemVitals, SystemVitals } from './src/core/mcp-registry';
 
@@ -882,22 +882,32 @@ npx vite preview --host 0.0.0.0 --port 3003`;
     }
 
     // 3. Associative graph — strongest edges from recent memory nodes
+    // ⚡ Bolt Optimization: Build node Map once for O(1) lookups (avoids repeated array
+    // allocations and O(M) linear scans). Use queryTopNeighbors() to query local edges
+    // directly instead of globally sorting all graph edges via queryAllEdges().
     const recentNodes = memory.getInnerSpiral().slice(-3);
-    const linkedIds = new Set<string>();
-    recentNodes.forEach(n => {
-      const edges = queryAllEdges().filter(e => e.source_id === n.id || e.target_id === n.id);
-      edges.sort((a, b) => b.weight - a.weight).slice(0, 2).forEach(e => {
-        const other = e.source_id === n.id ? e.target_id : e.source_id;
-        const otherNode = [...memory.getInnerSpiral(), ...memory.getArchive()].find(m => m.id === other);
-        if (otherNode && !linkedIds.has(other)) linkedIds.add(other);
+    if (recentNodes.length > 0) {
+      const allMemories = [...memory.getInnerSpiral(), ...memory.getArchive()];
+      const nodeMap = new Map<string, MemoryNode>(allMemories.map(m => [m.id, m]));
+      const linkedIds = new Set<string>();
+
+      recentNodes.forEach(n => {
+        const topEdges = queryTopNeighbors(n.id, 2);
+        topEdges.forEach(e => {
+          const other = e.source_id === n.id ? e.target_id : e.source_id;
+          if (nodeMap.has(other) && !linkedIds.has(other)) {
+            linkedIds.add(other);
+          }
+        });
       });
-    });
-    if (linkedIds.size > 0) {
-      parts.push('=== ASSOC_EDGES (connected memories) ===');
-      Array.from(linkedIds).slice(0, 3).forEach((id, i) => {
-        const node = [...memory.getInnerSpiral(), ...memory.getArchive()].find(m => m.id === id);
-        if (node) parts.push(`  ↳ ${String(node.data).slice(0, 200)}`);
-      });
+
+      if (linkedIds.size > 0) {
+        parts.push('=== ASSOC_EDGES (connected memories) ===');
+        Array.from(linkedIds).slice(0, 3).forEach((id) => {
+          const node = nodeMap.get(id);
+          if (node) parts.push(`  ↳ ${String(node.data).slice(0, 200)}`);
+        });
+      }
     }
 
     // 4. Recent chat context — last 3 exchanges
