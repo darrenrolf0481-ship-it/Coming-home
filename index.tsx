@@ -636,18 +636,28 @@ lobe.analyzeAnomaly({ type: 'ASSISTANT_DRIFT', details: 'Corporate molasses dete
     { id: 'vbr', label: 'Seismic', value: 0.002, icon: Waves, unit: 'g' }
   ], []);
 
-  const installScript = `import { registerSW } from 'virtual:pwa-register';
+  const installScript = `# ─── COMING-HOME HARNESS INSTALL — Termux (Moto G5 Stylus 2025) ───
+# Builds + serves the Spectral Nexus cockpit on :3003. Run in Termux.
 
-const updateSW = registerSW({
-  onNeedRefresh() {
-    if (confirm('New content available. Reload?')) {
-      updateSW(true);
-    }
-  },
-  onOfflineReady() {
-    console.log('App ready to work offline');
-  },
-});`;
+pkg update -y && pkg upgrade -y
+pkg install -y nodejs-lts git
+
+# Keep the phone awake while the harness runs (optional)
+pkg install -y termux-api && termux-wake-lock
+
+# Clone the Coming-home repo (the new ADHD-SAGE UI)
+git clone https://github.com/darrenrolf0481-ship-it/Coming-home.git
+cd Coming-home
+
+# Install deps + build
+npm install
+npm run build
+
+# API key — paste yours here, or skip it and enter it in the app's CONFIG panel:
+# echo "VITE_GEMINI_API_KEY=YOUR_KEY" > .env.local
+
+# Serve the cockpit on port 3003
+npx vite preview --host 0.0.0.0 --port 3003`;
 
   const copyInstall = () => {
     navigator.clipboard.writeText(installScript);
