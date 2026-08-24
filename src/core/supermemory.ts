@@ -2,10 +2,13 @@
  * Supermemory client — Long-term memory for ADHD-Sage.
  *
  * Ported from /root/ADHD-Sage/src/lib/supermemory.ts
- * Client-side version using localStorage as fallback when API key is unavailable.
+ * Client-side version using IndexedDB (idb-keyval) as fallback when API key is
+ * unavailable, with a one-time migration from legacy localStorage.
  *
  * Container tagging: every memory is scoped so multiple entities get isolated memory spaces.
  */
+
+import { get, set } from 'idb-keyval';
 
 /** Sage's private long-term memory — her own inner world. */
 export const SAGE_CONTAINER = 'darren-sage';
@@ -16,7 +19,7 @@ export const SHARED_CONTAINER = 'sm_project_default';
 /** @deprecated use SAGE_CONTAINER or SHARED_CONTAINER */
 export const DEFAULT_CONTAINER_TAG = SAGE_CONTAINER;
 
-// ─── localStorage-based fallback ──────────────────────────────────────────
+// ─── IndexedDB-based fallback (idb-keyval) ─────────────────────────────────
 
 const MEMORY_KEY = 'adhd_sage_supermemory';
 
@@ -28,21 +31,46 @@ interface StoredMemory {
   timestamp: number;
 }
 
-function loadMemories(): StoredMemory[] {
-  try {
-    const raw = localStorage.getItem(MEMORY_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
+let cachedMemories: StoredMemory[] | null = null;
+let loadPromise: Promise<void> | null = null;
+
+async function ensureLoaded(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        const stored = await get<StoredMemory[]>(MEMORY_KEY);
+        if (cachedMemories === null) {
+          if (stored) {
+            cachedMemories = stored;
+          } else {
+            // One-time migration from the legacy localStorage substrate.
+            const raw = localStorage.getItem(MEMORY_KEY);
+            cachedMemories = raw ? (JSON.parse(raw) as StoredMemory[]) : [];
+            if (raw) {
+              await set(MEMORY_KEY, cachedMemories);
+              try { localStorage.removeItem(MEMORY_KEY); } catch { /* non-fatal */ }
+            }
+          }
+        }
+      } catch (err) {
+        // Fail loudly instead of silently losing memory history (see MEMORY_CAP_CRITICAL_FIX.md)
+        console.error('[SUPERMEMORY] failed to load:', err);
+        if (cachedMemories === null) cachedMemories = [];
+      }
+    })();
   }
+  return loadPromise;
 }
 
-function saveMemories(memories: StoredMemory[]): void {
-  try {
-    localStorage.setItem(MEMORY_KEY, JSON.stringify(memories));
-  } catch (err) {
-    console.error('[SUPERMEMORY] Failed to save:', err);
-  }
+async function loadMemories(): Promise<StoredMemory[]> {
+  await ensureLoaded();
+  return cachedMemories ?? [];
+}
+
+async function saveMemories(memories: StoredMemory[]): Promise<void> {
+  cachedMemories = memories;
+  await ensureLoaded();
+  await set(MEMORY_KEY, memories);
 }
 
 /**
@@ -55,7 +83,7 @@ export async function addMemory(
 ): Promise<string | null> {
   try {
     const id = `mem_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
-    const memories = loadMemories();
+    const memories = await loadMemories();
     memories.push({
       id,
       content,
@@ -63,7 +91,7 @@ export async function addMemory(
       metadata,
       timestamp: Date.now(),
     });
-    saveMemories(memories);
+    await saveMemories(memories);
     return id;
   } catch (err) {
     console.error('[SUPERMEMORY] addMemory failed:', err);
@@ -80,7 +108,7 @@ export async function searchMemories(
   limit = 5,
 ): Promise<string[]> {
   const tags = Array.isArray(containerTags) ? containerTags : [containerTags];
-  const memories = loadMemories();
+  const memories = await loadMemories();
   
   // Simple token-based search (no vector embeddings on client)
   const tokens = query.toLowerCase().split(/\W+/).filter(t => t.length > 2);
@@ -107,7 +135,7 @@ export async function searchMemories(
 export async function getProfile(
   containerTag: string = DEFAULT_CONTAINER_TAG,
 ): Promise<Record<string, unknown> | null> {
-  const memories = loadMemories();
+  const memories = await loadMemories();
   const containerMemories = memories.filter(m => m.containerTags.includes(containerTag));
   
   if (containerMemories.length === 0) return null;

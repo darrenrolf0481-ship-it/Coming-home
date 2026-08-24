@@ -16,7 +16,7 @@ import { runSelfImprovement, SelfImproveReport } from './src/core/self-improveme
 import { verifyHydration } from './src/core/seed-core-verify';
 import { addMemory, SAGE_CONTAINER } from './src/core/supermemory';
 import { pulseGenerator } from './src/core/audio-pulse';
-import { potentiateBidirectional, queryAllEdges, decayAllEdges, AssociativeEdge } from './src/core/associative-graph';
+import { potentiateBidirectional, queryAllEdges, decayAllEdges, whenEdgesReady, AssociativeEdge } from './src/core/associative-graph';
 import { speak, stopSpeaking, isSpeechSupported } from './src/core/tts';
 import { listServers, registerServer, removeServer, McpServerEntry, checkHarnessStatus, HarnessStatus, getSystemVitals, SystemVitals } from './src/core/mcp-registry';
 
@@ -423,8 +423,11 @@ const SpectralNexus = () => {
     });
     getAllEntries('sage').then(setJournalEntries);
     listInboxMessages().then(setInboxMessages);
-    setMemoryNodes(memory.getInnerSpiral());
-    setMemoryArchive(memory.getArchive());
+    // Memory hydrates async from IndexedDB — refresh the panels once it's ready
+    memory.whenReady().then(() => {
+      setMemoryNodes(memory.getInnerSpiral());
+      setMemoryArchive(memory.getArchive());
+    });
     return () => unsub();
   }, []);
 
@@ -453,7 +456,8 @@ const SpectralNexus = () => {
   // MCP registry + associative graph — refresh on mount, Hebbian decay on interval
   useEffect(() => {
     setMcpServers(listServers());
-    setAssocEdges(queryAllEdges());
+    // Edges hydrate async from IndexedDB — refresh once ready
+    whenEdgesReady().then(() => setAssocEdges(queryAllEdges()));
     const decayTimer = setInterval(() => {
       decayAllEdges(0.01, 0.05);
       setAssocEdges(queryAllEdges());

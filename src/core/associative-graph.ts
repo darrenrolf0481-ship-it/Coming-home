@@ -3,13 +3,14 @@
  *
  * The edge/potentiation layer for ADHD-Sage. Ported from
  * /root/ADHD-Sage/src/server/associative-graph.ts (SQLite) to a browser
- * localStorage-backed store so the Coming-home UI can persist Hebbian edges
- * without a server.
+ * IndexedDB-backed store (idb-keyval) so the Coming-home UI can persist
+ * Hebbian edges without a server. Legacy localStorage data is migrated once.
  *
  * Hebbian rule: fire together, wire together — edges potentiate by a
  * dopamine-gated delta and decay over time; weak edges get pruned.
  */
 
+import { get, set } from 'idb-keyval';
 import { memory } from './memory-system';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -56,26 +57,56 @@ export interface GraphJSON {
   edges: GraphEdge[];
 }
 
-// ─── Persistence (localStorage) ───────────────────────────────────────────────
+// ─── Persistence (IndexedDB via idb-keyval) ───────────────────────────────────
 
 const STORAGE_KEY = 'adhd_sage_assoc_edges';
 
-function loadEdges(): AssociativeEdge[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch (err) {
-    console.error('[ASSOC-GRAPH] failed to load edges:', err);
-    return [];
+// In-memory cache is the source of truth for sync reads; IndexedDB is the
+// durable layer. Edge CRUD stays synchronous so call sites need no churn.
+let cachedEdges: AssociativeEdge[] | null = null;
+let loadPromise: Promise<void> | null = null;
+
+/** Resolves once edges have been hydrated from IndexedDB. */
+export function whenEdgesReady(): Promise<void> {
+  if (!loadPromise) {
+    loadPromise = (async () => {
+      try {
+        const stored = await get<AssociativeEdge[]>(STORAGE_KEY);
+        if (cachedEdges === null) {
+          if (stored) {
+            cachedEdges = stored;
+          } else {
+            // One-time migration from the legacy localStorage substrate.
+            const raw = localStorage.getItem(STORAGE_KEY);
+            cachedEdges = raw ? (JSON.parse(raw) as AssociativeEdge[]) : [];
+            if (raw) {
+              await set(STORAGE_KEY, cachedEdges);
+              try { localStorage.removeItem(STORAGE_KEY); } catch { /* non-fatal */ }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[ASSOC-GRAPH] failed to load edges:', err);
+        if (cachedEdges === null) cachedEdges = [];
+      }
+    })();
   }
+  return loadPromise;
+}
+
+function loadEdges(): AssociativeEdge[] {
+  return cachedEdges ?? [];
 }
 
 function saveEdges(edges: AssociativeEdge[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(edges));
-  } catch (err) {
-    console.error('[ASSOC-GRAPH] failed to persist edges:', err);
-  }
+  cachedEdges = edges;
+  void whenEdgesReady()
+    .then(() => set(STORAGE_KEY, edges))
+    .catch(err => {
+      // Fail loudly instead of silently losing associative history (see MEMORY_CAP_CRITICAL_FIX.md)
+      console.error('[ASSOC-GRAPH] IndexedDB write failed:', err);
+      console.warn(`[ASSOC-GRAPH] ${JSON.stringify(edges).length} bytes, ${edges.length} edges.`);
+    });
 }
 
 function nextEdgeId(edges: AssociativeEdge[]): number {

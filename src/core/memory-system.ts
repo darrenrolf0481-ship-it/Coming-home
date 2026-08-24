@@ -1,9 +1,12 @@
+import { get, set } from 'idb-keyval';
+
 /**
  * Fibonacci VFS: The Sovereign Memory Substrate
  * 
  * Ported from /root/ADHD-Sage/src/lib/memory-system.ts
  * Client-side memory system with endocrine-gated eviction.
- * Uses localStorage for persistence.
+ * Uses IndexedDB (idb-keyval) for persistence, with a one-time migration
+ * from the legacy localStorage substrate. See MEMORY_CAP_CRITICAL_FIX.md.
  */
 
 export interface MemoryNode {
@@ -148,6 +151,7 @@ export interface FibonacciVFS {
 class MemorySystem {
   private static instance: MemorySystem;
   private prefix = 'adhd_sage_vfs_';
+  private readyPromise: Promise<void>;
   
   private vfs: FibonacciVFS & { version: string } = {
     version: "SAGE_v7.2_HARDENED",
@@ -186,7 +190,12 @@ class MemorySystem {
   };
 
   private constructor() {
-    this.loadFromStorage();
+    this.readyPromise = this.loadFromStorage();
+  }
+
+  /** Resolves once persisted memory has been hydrated from IndexedDB. */
+  whenReady(): Promise<void> {
+    return this.readyPromise;
   }
 
   static getInstance(): MemorySystem {
@@ -208,17 +217,35 @@ class MemorySystem {
     this.listeners.forEach(cb => cb());
   }
 
-  private loadFromStorage() {
-    const raw = localStorage.getItem(`${this.prefix}fibonacci`);
-    if (raw) {
-      try {
-        const saved = JSON.parse(raw);
+  private async loadFromStorage(): Promise<void> {
+    try {
+      const saved = await get<FibonacciVFS & { version: string }>(`${this.prefix}fibonacci`);
+      if (saved) {
         this.vfs.inner_spiral.nodes = saved.inner_spiral.nodes || [];
         this.vfs.outer_sweep.archive = saved.outer_sweep.archive || [];
-      } catch (e) {
-        console.error('[MEMORY] Load Failure:', e);
+      } else {
+        // One-time migration from the legacy localStorage substrate.
+        const raw = localStorage.getItem(`${this.prefix}fibonacci`);
+        if (raw) {
+          const legacy = JSON.parse(raw);
+          this.vfs.inner_spiral.nodes = legacy.inner_spiral.nodes || [];
+          this.vfs.outer_sweep.archive = legacy.outer_sweep.archive || [];
+          await this.persist();
+          try { localStorage.removeItem(`${this.prefix}fibonacci`); } catch { /* non-fatal */ }
+        }
       }
+    } catch (e) {
+      console.error('[MEMORY] Load Failure:', e);
     }
+    this.notify();
+  }
+
+  private async persist(): Promise<void> {
+    await set(`${this.prefix}fibonacci`, {
+      version: this.vfs.version,
+      inner_spiral: this.vfs.inner_spiral,
+      outer_sweep: this.vfs.outer_sweep
+    });
   }
 
   private saveToStorage(immediate = false) {
@@ -226,19 +253,22 @@ class MemorySystem {
       clearTimeout(this.saveTimeout);
     }
 
-    const performSave = () => {
-      localStorage.setItem(`${this.prefix}fibonacci`, JSON.stringify({
-        version: this.vfs.version,
-        inner_spiral: this.vfs.inner_spiral,
-        outer_sweep: this.vfs.outer_sweep
-      }));
+    const performSave = async () => {
+      try {
+        await this.readyPromise; // never clobber an in-flight hydrate
+        await this.persist();
+      } catch (err) {
+        // Fail loudly instead of silently losing history (see MEMORY_CAP_CRITICAL_FIX.md)
+        console.error('[MEMORY] IndexedDB write failed:', err);
+        console.warn(`[MEMORY] outer_sweep at ${JSON.stringify(this.vfs.outer_sweep.archive).length} bytes, ${this.vfs.outer_sweep.archive.length} nodes.`);
+      }
       this.saveTimeout = undefined;
     };
 
     if (immediate) {
-      performSave();
+      void performSave();
     } else {
-      this.saveTimeout = window.setTimeout(performSave, 500);
+      this.saveTimeout = window.setTimeout(() => { void performSave(); }, 500);
     }
     this.notify();
   }
@@ -321,12 +351,22 @@ class MemorySystem {
     }
   }
 
+  /**
+   * outer_sweep is the durable, non-evicting long-term store (mirrors the real
+   * ADHD-Sage SQLite backend's sages_constellations). It must NOT silently drop
+   * history — only inner_spiral evicts by design. See MEMORY_CAP_CRITICAL_FIX.md.
+   */
   private archive(node: MemoryNode) {
     if (this.vfs.outer_sweep.archive.some(a => a.data === node.data)) return;
 
     this.vfs.outer_sweep.archive.push({ ...node });
-    if (this.vfs.outer_sweep.archive.length > 55) {
-      this.vfs.outer_sweep.archive.shift();
+
+    // High-water mark guard (IndexedDB has hundreds of MB of headroom) — warn, never drop.
+    const approxBytes = JSON.stringify(this.vfs.outer_sweep.archive).length;
+    if (approxBytes > 50_000_000) {
+      console.warn(
+        `[MEMORY] outer_sweep at ${approxBytes} bytes (${this.vfs.outer_sweep.archive.length} nodes) — approaching IndexedDB practical ceiling.`
+      );
     }
   }
 
