@@ -293,3 +293,43 @@ export async function getAllEntries(entity: string): Promise<JournalEntry[]> {
     .filter(e => e.entity === entity)
     .sort((a, b) => a.date.localeCompare(b.date));
 }
+
+/** Import journal entries from a migrated JSON payload (from /root/ADHD-Sage). */
+export async function importMigratedEntries(entries: JournalEntry[]): Promise<number> {
+  let count = 0;
+  for (const entry of entries) {
+    const key: [string, string] = [entry.entity, entry.date];
+    const existing = await dbGet<JournalEntry>('journals', key);
+    if (!existing) {
+      await dbPut('journals', entry);
+      count++;
+    }
+  }
+  return count;
+}
+
+/** Fetch migrated journal JSON from the public dir and import into IndexedDB. */
+export async function importFromMigrationFile(): Promise<{ imported: number; total: number }> {
+  try {
+    const res = await fetch('/journal-migration.json');
+    if (!res.ok) return { imported: 0, total: 0 };
+    const data = await res.json();
+    const entries: JournalEntry[] = data.entries || [];
+    const imported = await importMigratedEntries(entries);
+    return { imported, total: entries.length };
+  } catch {
+    return { imported: 0, total: 0 };
+  }
+}
+
+/** Export all journal entries as a downloadable JSON file. */
+export async function exportJournalEntries(entity: string): Promise<void> {
+  const entries = await getAllEntries(entity);
+  const blob = new Blob([JSON.stringify({ entity, exported_at: new Date().toISOString(), entries }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `sage-journal-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}

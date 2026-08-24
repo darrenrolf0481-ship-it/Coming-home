@@ -103,7 +103,7 @@ interface EvaluationReport {
   errors: string[];
 }
 
-class ConditionActionEngine {
+export class ConditionActionEngine {
   private rules: Rule[] = [];
 
   addRule(opts: {

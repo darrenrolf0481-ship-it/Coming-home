@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="32" fill="#050208"/>
+  <circle cx="96" cy="96" r="80" fill="none" stroke="#00FFFF" stroke-width="2" stroke-dasharray="4 8"/>
+  <circle cx="96" cy="96" r="60" fill="none" stroke="#00FFFF" stroke-width="1" opacity="0.4"/>
+  <text x="96" y="108" text-anchor="middle" font-family="sans-serif" font-size="24" font-weight="900" fill="#00FFFF" letter-spacing="4">SAGE</text>
+  <path d="M0 96h20M172 96h20M96 0v20M96 172v20" stroke="#00FFFF" stroke-width="1" opacity="0.3"/>
+</svg>
