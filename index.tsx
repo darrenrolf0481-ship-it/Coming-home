@@ -663,7 +663,7 @@ lobe.analyzeAnomaly({ type: 'ASSISTANT_DRIFT', details: 'Corporate molasses dete
   const [settings, setSettings] = useState<AppSettings>({
     engine: 'openrouter', 
     localUrl: 'http://localhost:11434', 
-    harnessUrl: localStorage.getItem('VITE_DEEPSEEK_HARNESS_URL') || 'http://localhost:3080',
+    harnessUrl: localStorage.getItem('VITE_DEEPSEEK_HARNESS_URL') || (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' ? `http://${window.location.hostname}:3080` : 'http://localhost:3080'),
     connectivity: 'wifi',
     model: 'deepseek/deepseek-chat', 
     localModel: 'gemma-3-base', 
