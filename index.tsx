@@ -88,7 +88,8 @@ interface AppSettings {
 
 // --- Obsidian Visual Components ---
 
-const ObsidianAtmosphere = ({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
+// ⚡ Bolt: Memoize static background component to prevent unnecessary re-renders during state updates
+const ObsidianAtmosphere = React.memo(({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
   <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none hex-bg">
     <div className="absolute inset-0 bg-gradient-to-b from-[#0a0510]/50 via-[#050208] to-[#000]" />
     <div className="absolute inset-[-20%] animate-ethereal opacity-20"
@@ -104,17 +105,19 @@ const ObsidianAtmosphere = ({ pulseColor = '#00FFFF' }: { pulseColor?: string })
     <div className="scanline-overlay" />
     <div className="scanline-bar" />
   </div>
-);
+));
 
-const TacticalFrame = ({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
+// ⚡ Bolt: Memoize frame overlay to prevent re-renders when parent state changes
+const TacticalFrame = React.memo(({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
   <svg className="absolute inset-0 w-full h-full pointer-events-none z-[70] opacity-30" viewBox="0 0 1000 1000" preserveAspectRatio="none">
     <path d="M 40 100 L 40 40 L 100 40 M 900 40 L 960 40 L 960 100 M 40 900 L 40 960 L 100 960 M 900 960 L 960 960 L 960 900" 
           stroke={pulseColor} strokeWidth="1" fill="none" />
     <path d="M 0 500 L 20 500 M 1000 500 L 980 500 M 500 0 L 500 20 M 500 1000 L 500 980" stroke={pulseColor} strokeWidth="0.5" />
   </svg>
-);
+));
 
-const ObsidianCenterpiece = ({ active = false, pulseColor = '#00FFFF' }: { active?: boolean, pulseColor?: string }) => (
+// ⚡ Bolt: Memoize visual centerpiece to avoid re-rendering unless active/color props change
+const ObsidianCenterpiece = React.memo(({ active = false, pulseColor = '#00FFFF' }: { active?: boolean, pulseColor?: string }) => (
   <div className={`absolute inset-0 flex items-center justify-center pointer-events-none z-10 transition-all duration-1000 ${active ? 'opacity-30 scale-100' : 'opacity-5 scale-95'}`}>
     <div className="relative w-[500px] h-[500px]" style={{ color: pulseColor }}>
       <svg width="100%" height="100%" viewBox="0 0 200 200" fill="none" style={{ opacity: 0.2 }}>
@@ -131,7 +134,7 @@ const ObsidianCenterpiece = ({ active = false, pulseColor = '#00FFFF' }: { activ
       </div>
     </div>
   </div>
-);
+));
 
 const NavButton = ({ icon: Icon, label, onClick, active }: any) => (
   <button 
