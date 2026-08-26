@@ -1078,6 +1078,13 @@ npx vite preview --host 0.0.0.0 --port 3003`;
               throw new Error(created.result?.error?.message || 'harness session.create failed');
             }
           }
+          // Remember where the conversation stood so we only read the fresh turn.
+          const base = await (await fetch(`${settings.harnessUrl}/api/session.history`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'client-request', rpcId: `br-${Date.now()}`, method: 'session.history', payload: { sessionId: sid } })
+          })).json();
+          const baseSeq = (base.result?.value?.events || []).reduce((m: number, e: any) => Math.max(m, (e.event || e).seq || 0), 0);
           const prompted = await (await fetch(`${settings.harnessUrl}/api/session.prompt`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1088,9 +1095,12 @@ npx vite preview --host 0.0.0.0 --port 3003`;
             localStorage.removeItem('sage_harness_session_id');
             throw new Error(prompted.result?.error?.message || 'harness session.prompt failed');
           }
-          // Poll the harness agent loop (LLM + tools) for the reply.
+          // Poll the harness agent loop (LLM + tools) for the reply. Only accept
+          // text from the CURRENT turn, and only once turn/end fired — never a
+          // stale or mid-generation message (a turn that overruns the deadline
+          // throws and the DeepSeek fallback answers instead).
           let reply = '';
-          const deadline = Date.now() + 60000;
+          const deadline = Date.now() + 120000;
           while (Date.now() < deadline) {
             await new Promise(r => setTimeout(r, 5000));
             const hist = await (await fetch(`${settings.harnessUrl}/api/session.history`, {
@@ -1099,21 +1109,23 @@ npx vite preview --host 0.0.0.0 --port 3003`;
               body: JSON.stringify({ type: 'client-request', rpcId: `hr-${Date.now()}`, method: 'session.history', payload: { sessionId: sid } })
             })).json();
             const events = hist.result?.value?.events || [];
-            const texts: string[] = [];
+            const fresh: string[] = [];
+            let turnEnded = false;
             for (const e of events) {
               const ev = e.event || e;
+              if ((ev.seq || 0) <= baseSeq) continue; // only events from the new turn
+              if (ev.type === 'turn/end') turnEnded = true;
               if (ev.type === 'assistant/message') {
                 const content = ev.data?.message?.content || [];
                 const t = content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ').trim();
-                if (t) texts.push(t);
+                // Strip the harness runtime-context snapshot if it ever leaks into
+                // the reply text ("Current runtime context. This snapshot...").
+                const cleaned = t.replace(/Current runtime context\. This snapshot supersedes[\s\S]*$/, '').trim();
+                if (cleaned) fresh.push(cleaned);
               }
             }
-            if (texts.length) reply = texts[texts.length - 1];
-            const finished = events.some((e: any) => {
-              const ev = e.event || e;
-              return ev.type === 'assistant/chunk' && ev.data?.chunk?.type === 'finish';
-            });
-            if (reply && finished) break;
+            if (fresh.length) reply = fresh[fresh.length - 1];
+            if (reply && turnEnded) break;
           }
           if (!reply) throw new Error('harness did not reply in time');
           responseText = reply;
