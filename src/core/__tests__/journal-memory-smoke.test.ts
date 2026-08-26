@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { sageMemory } from '../endocrine-memory';
+import { memory } from '../memory-system';
 import type { JournalEntry } from '../journal-agent';
 
 // Mirrors the feed inside importMigratedEntries (Step 1 of
@@ -34,6 +35,14 @@ describe('journal → endocrine memory feed', () => {
     expect(hits.length).toBeGreaterThan(0);
     expect(hits[0].perception).toContain('Merlin');
     expect(hits[0].intent).toBe('JOURNAL_ENTRY');
+  });
+
+  it('VFS stash skips exact duplicates (backfill + live overlap)', () => {
+    memory.clear();
+    memory.stash('USER: hello there', { dopamine: 0.5, cortisol: 0.1 });
+    memory.stash('USER: hello there', { dopamine: 0.5, cortisol: 0.1 });
+    const spiral = memory.getInnerSpiral();
+    expect(spiral.filter(n => n.data === 'USER: hello there').length).toBe(1);
   });
 
   it('re-storing the same journal id does not duplicate', () => {

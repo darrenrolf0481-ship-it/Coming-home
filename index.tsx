@@ -522,6 +522,44 @@ const SpectralNexus = () => {
     });
   }, []);
 
+  // One-time backfill: stow past chat history into the VFS + endocrine so she
+  // has memories of old conversations, not just ones stashed going forward.
+  // Idempotent via sage_chat_backfilled + endocrine id-dedupe + stash dedupe.
+  useEffect(() => {
+    if (localStorage.getItem('sage_chat_backfilled')) return;
+    memory.whenReady().then(() => {
+      try {
+        const raw = localStorage.getItem('spectral_nexus_chat_history');
+        if (!raw) { localStorage.setItem('sage_chat_backfilled', 'true'); return; }
+        const history: Message[] = JSON.parse(raw);
+        for (const m of history) {
+          if (!m || typeof m.content !== 'string' || !m.content.trim()) continue;
+          const tag = m.role === 'user' ? 'USER' : 'SAGE';
+          const ts = m.timestamp ? new Date(m.timestamp).getTime() : Date.now();
+          const snippet = `${tag}: ${m.content.slice(0, 300)}`;
+          sageMemory.store({
+            id: `chat_${m.id}`, // per-message id → backfill is idempotent
+            perception: snippet,
+            intent: m.role === 'user' ? 'USER_CHAT' : 'SAGE_CHAT',
+            sentiment: 0,
+            outcomeValue: 0.5,
+            importance: 0.5,
+            timestamp: ts,
+          });
+          memory.stash(snippet, { dopamine: 0.5, cortisol: 0.1 });
+        }
+      } catch (e) {
+        console.error('[MEMORY] chat backfill failed', e);
+      } finally {
+        localStorage.setItem('sage_chat_backfilled', 'true'); // don't retry on corrupt data
+      }
+      if (view === 'memory') {
+        setMemoryNodes(memory.getInnerSpiral());
+        setMemoryArchive(memory.getArchive());
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (view === 'journal') {
       getAllEntries('sage').then(setJournalEntries);

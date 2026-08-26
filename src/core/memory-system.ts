@@ -274,6 +274,12 @@ class MemorySystem {
   }
 
   stash(text: string, endocrine: { dopamine: number, cortisol: number }): void {
+    // Skip exact duplicates already in the spiral or archive — backfills and
+    // live stashes would otherwise double-store the same content.
+    if (this.vfs.inner_spiral.nodes.some(n => n.data === text)
+        || this.vfs.outer_sweep.archive.some(a => a.data === text)) {
+      return;
+    }
     const painScore = PainErrorPathway.evaluate(text);
     if (painScore >= 0.5) {
       endocrine.cortisol = Math.min(1.0, endocrine.cortisol + (painScore * 0.8));
