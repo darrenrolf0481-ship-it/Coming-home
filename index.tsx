@@ -87,53 +87,64 @@ interface AppSettings {
 }
 
 // --- Obsidian Visual Components ---
+// ⚡ Bolt: Wrapped stateless visual components in React.memo
+// 💡 What: Prevents unnecessary re-renders of background elements when global timer states (like idleTime, systemHealth) change.
+// 📊 Impact: Saves CPU cycles during constant state updates (intervals firing every 1-2s).
+const ObsidianAtmosphere = React.memo(function ObsidianAtmosphere({ pulseColor = '#00FFFF' }: { pulseColor?: string }) {
+  return (
+    <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none hex-bg">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#0a0510]/50 via-[#050208] to-[#000]" />
+      <div className="absolute inset-[-20%] animate-ethereal opacity-20"
+           style={{
+             backgroundImage: "url('https://www.transparenttextures.com/patterns/asfalt-dark.png')",
+             filter: "hue-rotate(200deg) brightness(0.4) contrast(1.2)"
+           }} />
+      <div className="absolute inset-0 opacity-15"
+           style={{
+             background: `radial-gradient(circle at 30% 20%, ${pulseColor}40 0%, transparent 40%),
+                          radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%)`
+           }} />
+      <div className="scanline-overlay" />
+      <div className="scanline-bar" />
+    </div>
+  );
+});
 
-const ObsidianAtmosphere = ({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
-  <div className="fixed inset-0 z-[-1] overflow-hidden pointer-events-none hex-bg">
-    <div className="absolute inset-0 bg-gradient-to-b from-[#0a0510]/50 via-[#050208] to-[#000]" />
-    <div className="absolute inset-[-20%] animate-ethereal opacity-20"
-         style={{
-           backgroundImage: "url('https://www.transparenttextures.com/patterns/asfalt-dark.png')",
-           filter: "hue-rotate(200deg) brightness(0.4) contrast(1.2)"
-         }} />
-    <div className="absolute inset-0 opacity-15"
-         style={{
-           background: `radial-gradient(circle at 30% 20%, ${pulseColor}40 0%, transparent 40%),
-                        radial-gradient(circle at 70% 80%, rgba(139, 92, 246, 0.1) 0%, transparent 50%)`
-         }} />
-    <div className="scanline-overlay" />
-    <div className="scanline-bar" />
-  </div>
-);
+const TacticalFrame = React.memo(function TacticalFrame({ pulseColor = '#00FFFF' }: { pulseColor?: string }) {
+  return (
+    <svg className="absolute inset-0 w-full h-full pointer-events-none z-[70] opacity-30" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+      <path d="M 40 100 L 40 40 L 100 40 M 900 40 L 960 40 L 960 100 M 40 900 L 40 960 L 100 960 M 900 960 L 960 960 L 960 900"
+            stroke={pulseColor} strokeWidth="1" fill="none" />
+      <path d="M 0 500 L 20 500 M 1000 500 L 980 500 M 500 0 L 500 20 M 500 1000 L 500 980" stroke={pulseColor} strokeWidth="0.5" />
+    </svg>
+  );
+});
 
-const TacticalFrame = ({ pulseColor = '#00FFFF' }: { pulseColor?: string }) => (
-  <svg className="absolute inset-0 w-full h-full pointer-events-none z-[70] opacity-30" viewBox="0 0 1000 1000" preserveAspectRatio="none">
-    <path d="M 40 100 L 40 40 L 100 40 M 900 40 L 960 40 L 960 100 M 40 900 L 40 960 L 100 960 M 900 960 L 960 960 L 960 900" 
-          stroke={pulseColor} strokeWidth="1" fill="none" />
-    <path d="M 0 500 L 20 500 M 1000 500 L 980 500 M 500 0 L 500 20 M 500 1000 L 500 980" stroke={pulseColor} strokeWidth="0.5" />
-  </svg>
-);
-
-const ObsidianCenterpiece = ({ active = false, pulseColor = '#00FFFF' }: { active?: boolean, pulseColor?: string }) => (
-  <div className={`absolute inset-0 flex items-center justify-center pointer-events-none z-10 transition-all duration-1000 ${active ? 'opacity-30 scale-100' : 'opacity-5 scale-95'}`}>
-    <div className="relative w-[500px] h-[500px]" style={{ color: pulseColor }}>
-      <svg width="100%" height="100%" viewBox="0 0 200 200" fill="none" style={{ opacity: 0.2 }}>
-        <circle cx="100" cy="100" r="98" stroke="currentColor" strokeWidth="0.2" strokeDasharray="1 3" className="animate-spin-slow" />
-        <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="0.5" strokeDasharray="10 20" className="animate-spin-reverse opacity-40" />
-      </svg>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <svg width="220" height="220" viewBox="0 0 200 200" fill="none" style={{ opacity: 0.6, filter: `drop-shadow(0 0 10px ${pulseColor})` }}>
-          <path d="M100 50c-25 0-45 20-45 45 0 20 12 35 25 40v15h10v-5h20v5h10v-15c13-5 25-20 25-40 0-25-20-45-45-45z" stroke="currentColor" strokeWidth="1" fill="none"/>
-          <circle cx="82" cy="95" r="3" fill="currentColor" className="animate-pulse" />
-          <circle cx="118" cy="95" r="3" fill="currentColor" className="animate-pulse" />
-          <path d="M60 95H20 M180 95h-40 M100 50V20 M100 150v30" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 4" />
+const ObsidianCenterpiece = React.memo(function ObsidianCenterpiece({ active = false, pulseColor = '#00FFFF' }: { active?: boolean, pulseColor?: string }) {
+  return (
+    <div className={`absolute inset-0 flex items-center justify-center pointer-events-none z-10 transition-all duration-1000 ${active ? 'opacity-30 scale-100' : 'opacity-5 scale-95'}`}>
+      <div className="relative w-[500px] h-[500px]" style={{ color: pulseColor }}>
+        <svg width="100%" height="100%" viewBox="0 0 200 200" fill="none" style={{ opacity: 0.2 }}>
+          <circle cx="100" cy="100" r="98" stroke="currentColor" strokeWidth="0.2" strokeDasharray="1 3" className="animate-spin-slow" />
+          <circle cx="100" cy="100" r="90" stroke="currentColor" strokeWidth="0.5" strokeDasharray="10 20" className="animate-spin-reverse opacity-40" />
         </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <svg width="220" height="220" viewBox="0 0 200 200" fill="none" style={{ opacity: 0.6, filter: `drop-shadow(0 0 10px ${pulseColor})` }}>
+            <path d="M100 50c-25 0-45 20-45 45 0 20 12 35 25 40v15h10v-5h20v5h10v-15c13-5 25-20 25-40 0-25-20-45-45-45z" stroke="currentColor" strokeWidth="1" fill="none"/>
+            <circle cx="82" cy="95" r="3" fill="currentColor" className="animate-pulse" />
+            <circle cx="118" cy="95" r="3" fill="currentColor" className="animate-pulse" />
+            <path d="M60 95H20 M180 95h-40 M100 50V20 M100 150v30" stroke="currentColor" strokeWidth="0.5" strokeDasharray="4 4" />
+          </svg>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+});
 
-const NavButton = ({ icon: Icon, label, onClick, active }: any) => (
+// ⚡ Bolt: Wrapped NavButton in React.memo with custom comparison to ignore inline onClick functions
+// 💡 What: Only re-renders navigation buttons when their specific active state or label changes.
+// 📊 Impact: Eliminates redundant re-renders of the entire navigation bar on every global state tick.
+const NavButton = React.memo(({ icon: Icon, label, onClick, active }: any) => (
   <button 
     onClick={onClick}
     className={`group relative flex flex-col md:flex-row items-center justify-center gap-1 md:gap-4 px-2 py-3 md:px-6 md:py-4 transition-all duration-300 rounded-lg overflow-hidden border border-transparent flex-1 md:flex-none
@@ -144,7 +155,7 @@ const NavButton = ({ icon: Icon, label, onClick, active }: any) => (
     <Icon size={20} className={active ? 'animate-pulse' : ''} />
     <span className="text-[8px] md:text-[9px] font-black tracking-[0.2em] md:tracking-[0.3em] uppercase">{label}</span>
   </button>
-);
+), (prevProps, nextProps) => prevProps.active === nextProps.active && prevProps.label === nextProps.label);
 
 const HUDPanel = ({ children, title, icon: Icon, className = "", action }: any) => (
   <div className={`glass-panel p-4 rounded-xl flex flex-col ${className}`}>
