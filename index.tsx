@@ -890,6 +890,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
   const buildMemoryContext = useCallback((userText: string): { text: string; trace: string } => {
     const parts: string[] = [];
     const bits: string[] = [];
+    let topSnippet = '';
 
     // 1. Inner Spiral — recent relevant memories
     const relevant = memory.findRelevantMemories(userText, 4);
@@ -900,6 +901,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
         parts.push(`[${i+1}] DA:${n.dopamine.toFixed(1)} CO:${n.cortisol.toFixed(1)} — ${excerpt}`);
       });
       bits.push(`spiral ${relevant.length}`);
+      if (!topSnippet) topSnippet = String(relevant[0].data).replace(/\s+/g, ' ').trim();
     }
 
     // 2. Vector memory — endocrine-anchored recent experiences
@@ -913,6 +915,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
       });
       const journalHits = shown.filter(e => e.intent === 'JOURNAL_ENTRY').length;
       bits.push(`endocrine ${shown.length}${journalHits ? ` (${journalHits} journal)` : ''}`);
+      if (!topSnippet) topSnippet = shown[0].perception.replace(/\s+/g, ' ').trim();
     }
 
     // 3. Associative graph — strongest edges from recent memory nodes
@@ -957,7 +960,8 @@ npx vite preview --host 0.0.0.0 --port 3003`;
     }
 
     const text = parts.length > 0 ? parts.join('\n') + '\n\n=== END_MEMORY_CONTEXT ===\n' : '';
-    const trace = bits.length > 0 ? `MEMORY: ${bits.join(' · ')}` : 'MEMORY: none recalled';
+    const top = topSnippet ? ` — top: "${topSnippet.slice(0, 80)}${topSnippet.length > 80 ? '…' : ''}"` : '';
+    const trace = bits.length > 0 ? `MEMORY: ${bits.join(' · ')}${top}` : 'MEMORY: none recalled';
     return { text, trace };
   }, [messages]);
 
