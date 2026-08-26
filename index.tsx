@@ -1044,28 +1044,88 @@ npx vite preview --host 0.0.0.0 --port 3003`;
         const data = await res.json();
         responseText = data.response || '';
       } else if (settings.engine === 'harness') {
-        // Route chat through DeepSeek API (the engine behind the harness) with ADHD-SAGE persona
-        const apiKey = envKeys.deepseek || import.meta.env.VITE_DEEPSEEK_API_KEY || import.meta.env.DEEPSEEK_API_KEY;
-        if (apiKey) {
-          try {
-            const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+        // Chat into the harness itself via its /api RPC — one shared conversation
+        // (ADHD persona, OpenRouter brain, workspace tools). The memory context
+        // rides along in the prompt so she stays grounded. Falls back to the
+        // DeepSeek API if the harness is unreachable.
+        try {
+          let sid = localStorage.getItem('sage_harness_session_id') || '';
+          if (!sid) {
+            const created = await (await fetch(`${settings.harnessUrl}/api/session.create`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-              body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                  { role: 'system', content: ADHD_SAGE_SYSTEM_PROMPT + '\n\nYou are currently running inside the DeepSeek Harness (dsh) — an agent coding engine with file editing, shell, web search, and subagent delegation capabilities. This is your workshop. Use it.' },
-                  { role: 'user', content: augmentedText }
-                ]
-              })
-            });
-            const data = await res.json();
-            responseText = data.choices?.[0]?.message?.content || '';
-          } catch {
-            responseText = `[HARNESS_ROUTE] DeepSeek API unreachable. Open the harness at ${settings.harnessUrl} to interact directly.`;
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'client-request', rpcId: `cr-${Date.now()}`, method: 'session.create', payload: {} })
+            })).json();
+            if (created.result?.ok) {
+              sid = created.result.value.sessionId;
+              localStorage.setItem('sage_harness_session_id', sid);
+            } else {
+              throw new Error(created.result?.error?.message || 'harness session.create failed');
+            }
           }
-        } else {
-          responseText = `[HARNESS_ROUTE] No DeepSeek API key configured. Add VITE_DEEPSEEK_API_KEY in Settings or open the harness at ${settings.harnessUrl}.`;
+          const prompted = await (await fetch(`${settings.harnessUrl}/api/session.prompt`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'client-request', rpcId: `pr-${Date.now()}`, method: 'session.prompt', payload: { sessionId: sid, mode: 'queue', content: [{ type: 'text', text: augmentedText }] } })
+          })).json();
+          if (!prompted.result?.ok) {
+            // Session may have been wiped server-side — recreate once next time.
+            localStorage.removeItem('sage_harness_session_id');
+            throw new Error(prompted.result?.error?.message || 'harness session.prompt failed');
+          }
+          // Poll the harness agent loop (LLM + tools) for the reply.
+          let reply = '';
+          const deadline = Date.now() + 60000;
+          while (Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, 5000));
+            const hist = await (await fetch(`${settings.harnessUrl}/api/session.history`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ type: 'client-request', rpcId: `hr-${Date.now()}`, method: 'session.history', payload: { sessionId: sid } })
+            })).json();
+            const events = hist.result?.value?.events || [];
+            const texts: string[] = [];
+            for (const e of events) {
+              const ev = e.event || e;
+              if (ev.type === 'assistant/message') {
+                const content = ev.data?.message?.content || [];
+                const t = content.filter((c: any) => c.type === 'text').map((c: any) => c.text).join(' ').trim();
+                if (t) texts.push(t);
+              }
+            }
+            if (texts.length) reply = texts[texts.length - 1];
+            const finished = events.some((e: any) => {
+              const ev = e.event || e;
+              return ev.type === 'assistant/chunk' && ev.data?.chunk?.type === 'finish';
+            });
+            if (reply && finished) break;
+          }
+          if (!reply) throw new Error('harness did not reply in time');
+          responseText = reply;
+        } catch {
+          // Fallback: DeepSeek API direct with the ADHD-SAGE persona.
+          const apiKey = envKeys.deepseek || import.meta.env.VITE_DEEPSEEK_API_KEY || import.meta.env.DEEPSEEK_API_KEY;
+          if (apiKey) {
+            try {
+              const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                body: JSON.stringify({
+                  model: 'deepseek-chat',
+                  messages: [
+                    { role: 'system', content: ADHD_SAGE_SYSTEM_PROMPT + '\n\nYou are currently running inside the DeepSeek Harness (dsh) — an agent coding engine with file editing, shell, web search, and subagent delegation capabilities. This is your workshop. Use it.' },
+                    { role: 'user', content: augmentedText }
+                  ]
+                })
+              });
+              const data = await res.json();
+              responseText = data.choices?.[0]?.message?.content || '';
+            } catch {
+              responseText = `[HARNESS_ROUTE] Harness unreachable at ${settings.harnessUrl} and DeepSeek API fallback failed. Start it with: bash /root/Josie/scripts/start-all.sh`;
+            }
+          } else {
+            responseText = `[HARNESS_ROUTE] Harness unreachable at ${settings.harnessUrl}. Open it directly to interact, or set VITE_DEEPSEEK_API_KEY for the fallback.`;
+          }
         }
         setView('harness');
       }
