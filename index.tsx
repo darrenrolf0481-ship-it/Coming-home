@@ -72,6 +72,7 @@ interface Message {
   content: string;
   timestamp: Date;
   engine: string;
+  memoryTrace?: string;
 }
 
 interface AppSettings {
@@ -884,8 +885,11 @@ npx vite preview --host 0.0.0.0 --port 3003`;
   };
 
   // ─── Build memory context for chat ──────────────────────────────────
-  const buildMemoryContext = useCallback((userText: string): string => {
+  // Returns the injected context text plus a compact human trace of what was
+  // actually recalled (shown under her reply so memory usage is visible).
+  const buildMemoryContext = useCallback((userText: string): { text: string; trace: string } => {
     const parts: string[] = [];
+    const bits: string[] = [];
 
     // 1. Inner Spiral — recent relevant memories
     const relevant = memory.findRelevantMemories(userText, 4);
@@ -895,16 +899,20 @@ npx vite preview --host 0.0.0.0 --port 3003`;
         const excerpt = String(n.data).slice(0, 250);
         parts.push(`[${i+1}] DA:${n.dopamine.toFixed(1)} CO:${n.cortisol.toFixed(1)} — ${excerpt}`);
       });
+      bits.push(`spiral ${relevant.length}`);
     }
 
     // 2. Vector memory — endocrine-anchored recent experiences
     const vectorHits = sageMemory.retrieveRelevant(userText);
     if (vectorHits.length > 0) {
       parts.push('=== ENDOCRINE_RESIDUE (affect-tagged experiences) ===');
-      vectorHits.slice(0, 4).forEach((exp, i) => {
+      const shown = vectorHits.slice(0, 4);
+      shown.forEach((exp, i) => {
         const tag = exp.sentiment > 0 ? '↑' : exp.sentiment < 0 ? '↓' : '~';
         parts.push(`[${i+1}] ${tag}${exp.intent} — ${exp.perception.slice(0, 200)}`);
       });
+      const journalHits = shown.filter(e => e.intent === 'JOURNAL_ENTRY').length;
+      bits.push(`endocrine ${shown.length}${journalHits ? ` (${journalHits} journal)` : ''}`);
     }
 
     // 3. Associative graph — strongest edges from recent memory nodes
@@ -929,10 +937,12 @@ npx vite preview --host 0.0.0.0 --port 3003`;
 
       if (linkedIds.size > 0) {
         parts.push('=== ASSOC_EDGES (connected memories) ===');
-        Array.from(linkedIds).slice(0, 3).forEach((id) => {
+        const linked = Array.from(linkedIds).slice(0, 3);
+        linked.forEach((id) => {
           const node = nodeMap.get(id);
           if (node) parts.push(`  ↳ ${String(node.data).slice(0, 200)}`);
         });
+        bits.push(`edges ${linked.length}`);
       }
     }
 
@@ -943,9 +953,12 @@ npx vite preview --host 0.0.0.0 --port 3003`;
       recentChat.forEach(m => {
         parts.push(`${m.role === 'user' ? 'USER' : 'SAGE'}: ${m.content.slice(0, 200)}`);
       });
+      bits.push(`chat ${recentChat.length}`);
     }
 
-    return parts.length > 0 ? parts.join('\n') + '\n\n=== END_MEMORY_CONTEXT ===\n' : '';
+    const text = parts.length > 0 ? parts.join('\n') + '\n\n=== END_MEMORY_CONTEXT ===\n' : '';
+    const trace = bits.length > 0 ? `MEMORY: ${bits.join(' · ')}` : 'MEMORY: none recalled';
+    return { text, trace };
   }, [messages]);
 
   const handleSend = async () => {
@@ -974,7 +987,8 @@ npx vite preview --host 0.0.0.0 --port 3003`;
 
     // Build memory context — what she remembers before responding
     const memCtx = buildMemoryContext(text);
-    const augmentedText = memCtx ? `${memCtx}\n\n=== CURRENT MESSAGE ===\n${text}` : text;
+    const memoryTrace = memCtx.trace;
+    const augmentedText = memCtx.text ? `${memCtx.text}\n\n=== CURRENT MESSAGE ===\n${text}` : text;
 
     try {
       let responseText = '';
@@ -1052,7 +1066,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: settings.localModel,
-            prompt: `${ADHD_SAGE_SYSTEM_PROMPT}\n\n${memCtx || ''}\n\nUser message:\n${text}`,
+            prompt: `${ADHD_SAGE_SYSTEM_PROMPT}\n\n${memCtx.text || ''}\n\nUser message:\n${text}`,
             stream: false
           })
         });
@@ -1174,7 +1188,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
         addMemory(`Chat: ${text.slice(0, 200)} → ${responseText.slice(0, 400)}`, SAGE_CONTAINER, { type: 'chat_exchange' });
       }
 
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: responseText, timestamp: new Date(), engine: settings.engine }]);
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: responseText, timestamp: new Date(), engine: settings.engine, memoryTrace }]);
     } catch (e) {} finally { setIsProcessing(false); }
   };
 
@@ -1408,6 +1422,9 @@ npx vite preview --host 0.0.0.0 --port 3003`;
                         </div>
                       </div>
                       <p className="text-[12px] font-medium leading-relaxed data-text">{m.content}</p>
+                      {m.role === 'assistant' && m.memoryTrace && (
+                        <div className="mt-2 pt-1 border-t border-white/5 text-[7px] data-text opacity-30 uppercase tracking-[0.2em]">{m.memoryTrace}</div>
+                      )}
                     </div>
                   </div>
                 ))}
