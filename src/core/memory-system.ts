@@ -180,7 +180,7 @@ class MemorySystem {
     inner_spiral: {
       index_keys: [2, 3, 5, 8],
       nodes: [],
-      capacity: 10,
+      capacity: 50,
       seven_stabilizer: "Node 3 holds recursive floor when Node 1 rests — applies gentle phi-damping to prevent cascade"
     },
     outer_sweep: {
@@ -378,6 +378,10 @@ class MemorySystem {
 
   getInnerSpiral() {
     return [...this.vfs.inner_spiral.nodes];
+  }
+
+  getInnerSpiralCapacity(): number {
+    return this.vfs.inner_spiral.capacity;
   }
 
   getArchive() {

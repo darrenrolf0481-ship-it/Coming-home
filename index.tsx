@@ -1910,7 +1910,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
                 <HUDPanel title="INNER_SPIRAL" icon={Brain} className="flex-[2]">
                   <div className="flex flex-col gap-2 p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Active Memory ({memoryNodes.length}/10)</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-cyan-400">Active Memory ({memoryNodes.length}/{memory.getInnerSpiralCapacity()})</span>
                       <div className="flex gap-2">
                         <button onClick={() => { memory.archiveAll(); setMemoryNodes(memory.getInnerSpiral()); setMemoryArchive(memory.getArchive()); }} className="text-[8px] text-white/30 hover:text-cyan-400 uppercase tracking-widest">Archive All</button>
                         <button onClick={() => { memory.clear(); setMemoryNodes([]); setMemoryArchive([]); }} className="text-[8px] text-white/30 hover:text-red-400 uppercase tracking-widest">Clear</button>
@@ -1956,7 +1956,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
                   </HUDPanel>
                   <HUDPanel title="OUTER_SWEEP_ARCHIVE" icon={Layers}>
                     <div className="flex flex-col gap-2 p-4 overflow-y-auto custom-scrollbar max-h-[300px]">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1">Archived ({memoryArchive.length}/55)</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1">Archived ({memoryArchive.length})</span>
                       {memoryArchive.length === 0 && (
                         <div className="text-center text-white/20 py-4">
                           <span className="text-[9px] uppercase tracking-widest">No archived memories</span>
