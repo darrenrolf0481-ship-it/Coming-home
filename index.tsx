@@ -476,15 +476,19 @@ const SpectralNexus = () => {
     return () => clearInterval(decayTimer);
   }, []);
 
-  // Auto-import journal entries from migration file on first load
+  // Auto-import journal entries from migration file on first load.
+  // Wait for the memory system to hydrate first, so stash() lands in the graph
+  // instead of racing the IndexedDB load (see DEEPSEEK_NEXT_STEPS_MEMORY_INTEGRATION.md).
   useEffect(() => {
     const migrated = localStorage.getItem('sage_journal_migrated');
     if (!migrated) {
-      importFromMigrationFile().then(result => {
-        if (result.imported > 0) {
-          localStorage.setItem('sage_journal_migrated', 'true');
-          getAllEntries('sage').then(setJournalEntries);
-        }
+      memory.whenReady().then(() => {
+        importFromMigrationFile().then(result => {
+          if (result.imported > 0) {
+            localStorage.setItem('sage_journal_migrated', 'true');
+            getAllEntries('sage').then(setJournalEntries);
+          }
+        });
       });
     }
   }, []);
@@ -1676,6 +1680,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
                       <button
                         onClick={async () => {
                           setJournalImportStatus('Importing…');
+                          await memory.whenReady();
                           const result = await importFromMigrationFile();
                           setJournalImportStatus(`${result.imported}/${result.total}`);
                           setTimeout(() => setJournalImportStatus(null), 4000);

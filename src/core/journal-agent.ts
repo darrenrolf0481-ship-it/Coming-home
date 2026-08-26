@@ -11,6 +11,9 @@
  *   - Supermemory container for key insights
  */
 
+import { sageMemory } from './endocrine-memory';
+import { memory } from './memory-system';
+
 const DB_NAME = 'ADHDSageJournal';
 const DB_VERSION = 1;
 
@@ -294,7 +297,14 @@ export async function getAllEntries(entity: string): Promise<JournalEntry[]> {
     .sort((a, b) => a.date.localeCompare(b.date));
 }
 
-/** Import journal entries from a migrated JSON payload (from /root/ADHD-Sage). */
+/** Import journal entries from a migrated JSON payload (from /root/ADHD-Sage).
+ *
+ * Besides IndexedDB, newly imported entries are also fed into the two memory
+ * systems so 3,000+ old journals stop sitting in cold storage:
+ *  - sageMemory.store() → endocrine vectors, so semantic search can find them
+ *  - memory.stash()     → the memory graph; evicted entries land in the
+ *    durable outer_sweep archive, so they're reachable via findRelevantMemories
+ */
 export async function importMigratedEntries(entries: JournalEntry[]): Promise<number> {
   let count = 0;
   for (const entry of entries) {
@@ -302,6 +312,25 @@ export async function importMigratedEntries(entries: JournalEntry[]): Promise<nu
     const existing = await dbGet<JournalEntry>('journals', key);
     if (!existing) {
       await dbPut('journals', entry);
+
+      // Feed into endocrine vector memory so semantic search can find old journals.
+      sageMemory.store({
+        id: `journal_${entry.entity}_${entry.date}`,
+        perception: entry.content,
+        intent: 'JOURNAL_ENTRY',
+        sentiment: 0,
+        outcomeValue: 0.5,
+        importance: 0.7, // migrated history: high importance
+        timestamp: new Date(entry.date).getTime(),
+      });
+
+      // Feed into the memory graph — inner_spiral keeps recent ones, the rest
+      // evict into the non-evicting outer_sweep archive (durable long-term store).
+      memory.stash(entry.content, {
+        dopamine: 0.7, // migrated history gets prioritized over noise
+        cortisol: 0.2,
+      });
+
       count++;
     }
   }
