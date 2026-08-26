@@ -688,6 +688,17 @@ lobe.analyzeAnomaly({ type: 'ASSISTANT_DRIFT', details: 'Corporate molasses dete
     localStorage.setItem('VITE_DEEPSEEK_HARNESS_URL', url);
   };
 
+  // Pin the computed harness URL into localStorage once so the LAN default
+  // survives even if the app is later served from localhost.
+  useEffect(() => {
+    if (!localStorage.getItem('VITE_DEEPSEEK_HARNESS_URL')) {
+      const computed = typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+        ? `http://${window.location.hostname}:3080`
+        : 'http://localhost:3080';
+      localStorage.setItem('VITE_DEEPSEEK_HARNESS_URL', computed);
+    }
+  }, []);
+
   // DeepSeek Harness — probe status on mount and every 30s
   useEffect(() => {
     const probe = () => { checkHarnessStatus(settings.harnessUrl).then(setHarnessStatus); };
