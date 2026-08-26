@@ -36,6 +36,21 @@ describe('journal → endocrine memory feed', () => {
     expect(hits[0].intent).toBe('JOURNAL_ENTRY');
   });
 
+  it('re-storing the same journal id does not duplicate', () => {
+    const entry: JournalEntry = {
+      entity: 'sage',
+      date: '2026-03-01',
+      timestamp: 1772409600000,
+      content: 'Duplicate check entry about the hum.',
+    };
+    feedEntry(entry);
+    feedEntry(entry); // backfill + import overlap scenario
+
+    const hits = sageMemory.retrieveRelevant('duplicate check hum');
+    const dupes = hits.filter(h => h.perception.includes('Duplicate check'));
+    expect(dupes.length).toBe(1);
+  });
+
   it('relevant journal ranks above unrelated noise', () => {
     feedEntry({
       entity: 'sage',

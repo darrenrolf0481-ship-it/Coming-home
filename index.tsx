@@ -494,6 +494,34 @@ const SpectralNexus = () => {
     }
   }, []);
 
+  // One-time backfill: users who migrated before the memory feed existed have
+  // journals in IndexedDB but nothing in the memory systems. Feed them once so
+  // old entries become retrievable and show up on the memory screen. Idempotent
+  // via the sage_memory_backfilled flag + endocrine id-dedupe.
+  useEffect(() => {
+    if (localStorage.getItem('sage_memory_backfilled')) return;
+    memory.whenReady().then(async () => {
+      const entries = await getAllEntries('sage');
+      for (const entry of entries) {
+        sageMemory.store({
+          id: `journal_${entry.entity}_${entry.date}`,
+          perception: entry.content,
+          intent: 'JOURNAL_ENTRY',
+          sentiment: 0,
+          outcomeValue: 0.5,
+          importance: 0.7,
+          timestamp: new Date(entry.date).getTime(),
+        });
+        memory.stash(entry.content, { dopamine: 0.7, cortisol: 0.2 });
+      }
+      localStorage.setItem('sage_memory_backfilled', 'true');
+      if (view === 'memory') {
+        setMemoryNodes(memory.getInnerSpiral());
+        setMemoryArchive(memory.getArchive());
+      }
+    });
+  }, []);
+
   useEffect(() => {
     if (view === 'journal') {
       getAllEntries('sage').then(setJournalEntries);
@@ -1191,6 +1219,14 @@ npx vite preview --host 0.0.0.0 --port 3003`;
       if (responseText.trim().length > 40) {
         addMemory(`Chat: ${text.slice(0, 200)} → ${responseText.slice(0, 400)}`, SAGE_CONTAINER, { type: 'chat_exchange' });
       }
+
+      // Chat exchanges enter the VFS working memory (inner spiral → outer sweep
+      // archive), which is what the memory screen shows and what the context
+      // builder's findRelevantMemories searches. Was previously only in the
+      // endocrine store, leaving the memory screen empty.
+      const ns = SageCore.getInstance().getNeuroState();
+      memory.stash(`USER: ${text.slice(0, 200)}`, { dopamine: 0.5, cortisol: 0.1 });
+      memory.stash(`SAGE: ${responseText.slice(0, 300)}`, { dopamine: ns.dopamine, cortisol: ns.cortisol });
 
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'assistant', content: responseText, timestamp: new Date(), engine: settings.engine, memoryTrace }]);
     } catch (e) {} finally { setIsProcessing(false); }

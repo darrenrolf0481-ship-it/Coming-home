@@ -95,6 +95,8 @@ export class MemoryEngine {
   store(exp: Experience): void {
     if (!exp.embedding) exp.embedding = this.encode(exp.perception);
     if (!exp.id) exp.id = `exp_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    // Idempotent by id: re-imports / backfills must not duplicate entries.
+    if (this.stm.some(e => e.id === exp.id) || this.ltm.some(e => e.id === exp.id)) return;
     this.stm.push(exp);
     if (this.stm.length > 10) this.consolidate();
   }
