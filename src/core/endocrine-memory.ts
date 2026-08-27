@@ -78,16 +78,16 @@ export class MemoryEngine {
     return vec.map((v) => v / norm);
   }
 
+  // ⚡ Bolt: Vectors from encode() are already L2-normalized (magnitude = 1),
+  // so cosine similarity is exactly equal to the dot product.
+  // This saves 2x multiplications and 2x Math.sqrt per comparison.
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length || a.length === 0) return 0;
-    let dot = 0, normA = 0, normB = 0;
+    let dot = 0;
     for (let i = 0; i < a.length; i++) {
       dot += a[i] * b[i];
-      normA += a[i] * a[i];
-      normB += b[i] * b[i];
     }
-    if (normA === 0 || normB === 0) return 0;
-    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+    return dot;
   }
 
   // --- Memory Operations ---
