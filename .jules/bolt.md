@@ -5,3 +5,7 @@
 ## 2024-05-18 - React.memo with inline functions
 **Learning:** Using `React.memo` is an anti-pattern when components have function props created inline (e.g. `onClick={() => {}}`). We should provide a custom comparison function to `React.memo` to ignore inline function prop changes, or refactor the code so the inline functions are defined using `useCallback` on the parent component.
 **Action:** When wrapping components in `React.memo`, look at where the component is used to ensure no inline functions or objects are passed down, or provide a custom comparison function to `React.memo` that ignores them.
+
+## 2024-05-18 - High-Frequency Event Throttling
+**Learning:** State updates triggered by high-frequency events (like `mousemove`) can cause massive re-renders in React applications, wasting CPU cycles even when the value being set is effectively identical to what it would be.
+**Action:** Always wrap event handlers for `mousemove`, `scroll`, and similar rapid-firing events in a throttle or debounce function. A throttle of ~200ms is often ideal for balancing responsiveness and performance without causing race conditions against longer intervals (like a 1s idle timer).
