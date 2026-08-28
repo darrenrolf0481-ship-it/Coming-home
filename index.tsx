@@ -380,7 +380,18 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
+    // ⚡ Bolt: Throttled event handler to prevent massive re-renders
+    // on high-frequency events like mousemove. Throttle time is 200ms
+    // to ensure no race condition with the 1000ms increment timer.
+    let isThrottled = false;
+    const resetIdle = () => {
+      if (!isThrottled) {
+        setIdleTime(0);
+        isThrottled = true;
+        setTimeout(() => isThrottled = false, 200);
+      }
+    };
+
     window.addEventListener('mousemove', resetIdle);
     window.addEventListener('keydown', resetIdle);
     window.addEventListener('touchstart', resetIdle);
