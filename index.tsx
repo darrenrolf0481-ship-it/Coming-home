@@ -380,7 +380,16 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
+    // Performance Optimization: Throttle high-frequency events to avoid massive re-renders
+    let lastReset = Date.now();
+    const resetIdle = () => {
+      const now = Date.now();
+      if (now - lastReset >= 200) {
+        setIdleTime(0);
+        lastReset = now;
+      }
+    };
+
     window.addEventListener('mousemove', resetIdle);
     window.addEventListener('keydown', resetIdle);
     window.addEventListener('touchstart', resetIdle);
