@@ -1,10 +1,5 @@
-1. **Analyze application rendering**
-   - The main `SpectralNexus` component has multiple timers (`setInterval` for `idleTime`, `systemHealth`, `networkLatency`) that run every 1-2 seconds, triggering full re-renders of the entire application.
-2. **Apply `React.memo` to stateless visual components**
-   - Wrap `ObsidianAtmosphere`, `TacticalFrame`, and `ObsidianCenterpiece` in `React.memo`. They only take primitive props (`pulseColor` string, `active` boolean), so they will perfectly skip re-renders when the main app state (like `idleTime`) changes, saving CPU cycles.
-3. **Apply `React.memo` to `NavButton` with custom comparator**
-   - Since `NavButton` receives inline functions (`onClick`), we will provide a custom comparison function to `React.memo` to only re-render when `active` or `label` changes.
-4. **Complete pre commit steps**
-   - Complete pre commit steps to make sure proper testing, verifications, reviews and reflections are done.
-5. **Create a Pull Request**
-   - Submit the changes using the `submit` tool.
+1. **Analyze high-frequency event handlers:** The application sets an idle timer in `index.tsx` by attaching `resetIdle` directly to `mousemove`, `keydown`, and `touchstart` events.
+2. **Implement throttling:** Create a throttled version of `resetIdle` using a 200ms timeout to prevent massive re-render queues caused by rapid `setIdleTime(0)` calls. Add passive flags where applicable to avoid blocking main thread scrolling.
+3. **Verify:** Check that the application compiles, `npm run test` passes, and `npm run build` succeeds.
+4. **Pre-commit Steps:** Ensure proper testing, verification, review, and reflection are done before submitting.
+5. **Update journal and Submit:** Add a critical learning journal entry about high-frequency event throttling, and submit the PR as Bolt.
