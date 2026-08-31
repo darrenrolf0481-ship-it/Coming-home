@@ -5,3 +5,7 @@
 ## 2024-05-18 - React.memo with inline functions
 **Learning:** Using `React.memo` is an anti-pattern when components have function props created inline (e.g. `onClick={() => {}}`). We should provide a custom comparison function to `React.memo` to ignore inline function prop changes, or refactor the code so the inline functions are defined using `useCallback` on the parent component.
 **Action:** When wrapping components in `React.memo`, look at where the component is used to ensure no inline functions or objects are passed down, or provide a custom comparison function to `React.memo` that ignores them.
+
+## 2026-08-26 - Throttling High-Frequency Global Events
+**Learning:** Attaching React state setters directly to high-frequency global events like `mousemove`, `keydown`, and `touchstart` creates massive re-render queues that block the main thread. Specifically, updating `idleTime` via `setIdleTime(0)` thousands of times a second causes huge performance bottlenecks in the UI.
+**Action:** Always wrap state setters inside a throttled function (e.g. 200ms) when binding to high-frequency events, and use the `{ passive: true }` flag to ensure scrolling is not blocked on the main thread.

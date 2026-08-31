@@ -375,15 +375,26 @@ const SpectralNexus = () => {
   }, []);
 
   // Idle Timer
+  // ⚡ Bolt Optimization: Throttle high-frequency global events (mousemove, keydown) to avoid massive React re-render queues.
+  // 💡 What: Used a 200ms throttle on the event handlers and added `{ passive: true }` to not block scrolling.
+  // 📊 Impact: Prevents setting state thousands of times per second when dragging the mouse, reducing main thread blocking.
   useEffect(() => {
     const interval = setInterval(() => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
-    window.addEventListener('mousemove', resetIdle);
-    window.addEventListener('keydown', resetIdle);
-    window.addEventListener('touchstart', resetIdle);
+    let lastReset = 0;
+    const resetIdle = () => {
+      const now = Date.now();
+      if (now - lastReset > 200) {
+        setIdleTime(0);
+        lastReset = now;
+      }
+    };
+
+    window.addEventListener('mousemove', resetIdle, { passive: true });
+    window.addEventListener('keydown', resetIdle, { passive: true });
+    window.addEventListener('touchstart', resetIdle, { passive: true });
     
     return () => {
       clearInterval(interval);
