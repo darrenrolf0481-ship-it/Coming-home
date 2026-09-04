@@ -380,7 +380,15 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
+    let lastReset = 0;
+    const resetIdle = () => {
+      const now = Date.now();
+      if (now - lastReset > 200) {
+        lastReset = now;
+        // Optimization: Functional update avoids re-render if already 0
+        setIdleTime(prev => prev > 0 ? 0 : prev);
+      }
+    };
     window.addEventListener('mousemove', resetIdle);
     window.addEventListener('keydown', resetIdle);
     window.addEventListener('touchstart', resetIdle);
