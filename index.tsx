@@ -380,10 +380,22 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
-    window.addEventListener('mousemove', resetIdle);
-    window.addEventListener('keydown', resetIdle);
-    window.addEventListener('touchstart', resetIdle);
+    // ⚡ Bolt: Throttled high-frequency events and optimized state update
+    // 💡 What: Throttles mousemove/keydown/touchstart events to 200ms and uses functional state update (prev === 0 ? prev : 0).
+    // 🎯 Why: Prevents massive re-renders and race conditions against internal timers from rapid user inputs.
+    // 📊 Impact: Significantly reduces CPU load and unnecessary React renders during active user interaction.
+    let lastEventTime = 0;
+    const resetIdle = () => {
+      const now = Date.now();
+      if (now - lastEventTime > 200) {
+        setIdleTime(prev => prev === 0 ? prev : 0);
+        lastEventTime = now;
+      }
+    };
+
+    window.addEventListener('mousemove', resetIdle, { passive: true });
+    window.addEventListener('keydown', resetIdle, { passive: true });
+    window.addEventListener('touchstart', resetIdle, { passive: true });
     
     return () => {
       clearInterval(interval);
