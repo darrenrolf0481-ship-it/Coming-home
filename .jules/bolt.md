@@ -5,3 +5,7 @@
 ## 2024-05-18 - React.memo with inline functions
 **Learning:** Using `React.memo` is an anti-pattern when components have function props created inline (e.g. `onClick={() => {}}`). We should provide a custom comparison function to `React.memo` to ignore inline function prop changes, or refactor the code so the inline functions are defined using `useCallback` on the parent component.
 **Action:** When wrapping components in `React.memo`, look at where the component is used to ensure no inline functions or objects are passed down, or provide a custom comparison function to `React.memo` that ignores them.
+
+## 2026-09-07 - Throttling high-frequency events and bailout functional updates
+**Learning:** Found a common React anti-pattern where frequent events like `mousemove` trigger state updates that cause unnecessary re-renders. We can throttle event handlers and use functional state updates returning the exact same previous state to trigger React's bailout mechanism and stop the render from cascading.
+**Action:** When setting up global event listeners (like idle timers or mouse trackers), always throttle the event callback and write state updaters as `setState(prev => prev === newValue ? prev : newValue)` to use React's built-in bailout.
