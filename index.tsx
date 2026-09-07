@@ -380,13 +380,24 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
+    // ⚡ Bolt: Throttled resetIdle to prevent massive re-renders and race conditions on high-frequency events.
+    let throttleTimeout: ReturnType<typeof setTimeout> | null = null;
+    const resetIdle = () => {
+      if (!throttleTimeout) {
+        setIdleTime(prev => prev === 0 ? prev : 0); // functional state update bailout
+        throttleTimeout = setTimeout(() => {
+          throttleTimeout = null;
+        }, 200);
+      }
+    };
+
     window.addEventListener('mousemove', resetIdle);
     window.addEventListener('keydown', resetIdle);
     window.addEventListener('touchstart', resetIdle);
     
     return () => {
       clearInterval(interval);
+      if (throttleTimeout) clearTimeout(throttleTimeout);
       window.removeEventListener('mousemove', resetIdle);
       window.removeEventListener('keydown', resetIdle);
       window.removeEventListener('touchstart', resetIdle);
