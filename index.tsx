@@ -380,7 +380,16 @@ const SpectralNexus = () => {
       setIdleTime(prev => prev + 1);
     }, 1000);
     
-    const resetIdle = () => setIdleTime(0);
+    // ⚡ Bolt Optimization: Throttle high-frequency events and use functional
+    // state updates to bail out of unnecessary re-renders.
+    let lastCall = 0;
+    const resetIdle = () => {
+      const now = Date.now();
+      if (now - lastCall < 200) return;
+      lastCall = now;
+      setIdleTime(prev => (prev === 0 ? prev : 0));
+    };
+
     window.addEventListener('mousemove', resetIdle);
     window.addEventListener('keydown', resetIdle);
     window.addEventListener('touchstart', resetIdle);
