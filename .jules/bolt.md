@@ -5,3 +5,7 @@
 ## 2024-05-18 - React.memo with inline functions
 **Learning:** Using `React.memo` is an anti-pattern when components have function props created inline (e.g. `onClick={() => {}}`). We should provide a custom comparison function to `React.memo` to ignore inline function prop changes, or refactor the code so the inline functions are defined using `useCallback` on the parent component.
 **Action:** When wrapping components in `React.memo`, look at where the component is used to ensure no inline functions or objects are passed down, or provide a custom comparison function to `React.memo` that ignores them.
+
+## 2024-05-18 - Extracted list rendering into React.memo
+**Learning:** If a large component has high-frequency internal state updates (like a clock or timers), any arrays rendered with `.map` inside it will be re-rendered every tick. This is a common performance bottleneck in React.
+**Action:** Extract the inner list item of the `.map` into its own component wrapped in `React.memo` to prevent unnecessary re-renders of the list items when the parent state updates, provided the items' props haven't changed.
