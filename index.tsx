@@ -209,6 +209,30 @@ const CriticalWarningOverlay = ({ active, metrics }: { active: boolean, metrics:
 
 // --- Main App ---
 
+
+// ⚡ Bolt: Wrapped ChatMessage in React.memo
+// 💡 What: Extracts chat message rendering into a memoized component.
+// 📊 Impact: Prevents re-rendering the entire chat history on every global state tick (like idleTime, systemHealth).
+const ChatMessageItem = React.memo(({ m }: { m: Message }) => (
+  <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+    <div className={`max-w-[80%] p-5 rounded-xl border transition-all duration-500 ${m.role === 'user' ? 'bg-cyan-900/10 border-cyan-400/10 text-white/90' : 'bg-white/5 border-white/10 text-cyan-400'}`}>
+      <div className="flex justify-between items-center mb-4 text-[7px] data-text opacity-20 uppercase tracking-[0.3em] border-b border-white/5 pb-1">
+        <span>{m.role === 'user' ? 'OPERATOR' : 'OBSIDIAN_CORE'}</span>
+        <div className="flex items-center gap-3">
+          <span>{m.timestamp.toLocaleTimeString()}</span>
+          {m.role === 'assistant' && isSpeechSupported() && (
+            <button onClick={() => speak(m.content, 'mama')} className="text-cyan-400/40 hover:text-cyan-400 transition-colors"><Volume2 size={10} /></button>
+          )}
+        </div>
+      </div>
+      <p className="text-[12px] font-medium leading-relaxed data-text">{m.content}</p>
+      {m.role === 'assistant' && m.memoryTrace && (
+        <div className="mt-2 pt-1 border-t border-white/5 text-[7px] data-text opacity-30 uppercase tracking-[0.2em]">{m.memoryTrace}</div>
+      )}
+    </div>
+  </div>
+), (prevProps, nextProps) => prevProps.m.id === nextProps.m.id && prevProps.m.content === nextProps.m.content && prevProps.m.memoryTrace === nextProps.m.memoryTrace);
+
 const SpectralNexus = () => {
   const [view, setView] = useState<ViewType>('optics');
   const [systemPower, setSystemPower] = useState(true);
@@ -1497,23 +1521,7 @@ npx vite preview --host 0.0.0.0 --port 3003`;
               </div>
               <div className="flex-1 glass-panel rounded-2xl p-6 overflow-y-auto space-y-8 pr-4 custom-scrollbar">
                 {messages.map(m => (
-                  <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[80%] p-5 rounded-xl border transition-all duration-500 ${m.role === 'user' ? 'bg-cyan-900/10 border-cyan-400/10 text-white/90' : 'bg-white/5 border-white/10 text-cyan-400'}`}>
-                      <div className="flex justify-between items-center mb-4 text-[7px] data-text opacity-20 uppercase tracking-[0.3em] border-b border-white/5 pb-1">
-                        <span>{m.role === 'user' ? 'OPERATOR' : 'OBSIDIAN_CORE'}</span>
-                        <div className="flex items-center gap-3">
-                          <span>{m.timestamp.toLocaleTimeString()}</span>
-                          {m.role === 'assistant' && isSpeechSupported() && (
-                            <button onClick={() => speak(m.content, 'mama')} className="text-cyan-400/40 hover:text-cyan-400 transition-colors"><Volume2 size={10} /></button>
-                          )}
-                        </div>
-                      </div>
-                      <p className="text-[12px] font-medium leading-relaxed data-text">{m.content}</p>
-                      {m.role === 'assistant' && m.memoryTrace && (
-                        <div className="mt-2 pt-1 border-t border-white/5 text-[7px] data-text opacity-30 uppercase tracking-[0.2em]">{m.memoryTrace}</div>
-                      )}
-                    </div>
-                  </div>
+                  <ChatMessageItem key={m.id} m={m} />
                 ))}
               </div>
               <div className="h-14 md:h-16 flex gap-2 md:gap-3 shrink-0">
