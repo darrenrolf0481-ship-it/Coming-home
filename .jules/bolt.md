@@ -5,3 +5,7 @@
 ## 2024-05-18 - React.memo with inline functions
 **Learning:** Using `React.memo` is an anti-pattern when components have function props created inline (e.g. `onClick={() => {}}`). We should provide a custom comparison function to `React.memo` to ignore inline function prop changes, or refactor the code so the inline functions are defined using `useCallback` on the parent component.
 **Action:** When wrapping components in `React.memo`, look at where the component is used to ensure no inline functions or objects are passed down, or provide a custom comparison function to `React.memo` that ignores them.
+
+## 2026-09-11 - Array Spread & Map-Filter Chaining in Search Iterations
+**Learning:** In `findRelevantMemories`, combining multiple large memory arrays (`inner_spiral` + `outer_sweep`) using array spreads (`[...a, ...b]`) and chaining `.map().filter()` caused unnecessary (N)$ object allocations and high GC pressure. Every memory node generated an intermediate object regardless of its score.
+**Action:** Avoid `.map().filter()` chains over large dynamic datasets. Instead, use `for...of` loops and conditionally instantiate tracking objects only for valid hits, appending directly to the result array.
