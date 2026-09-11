@@ -393,23 +393,31 @@ class MemorySystem {
   }
 
   findRelevantMemories(context: string, limit = 3): MemoryNode[] {
-    const all = [...this.vfs.inner_spiral.nodes, ...this.vfs.outer_sweep.archive];
     const tokens = context.toLowerCase().split(/\W+/).filter(t => t.length > 3);
     
     if (tokens.length === 0) return [];
 
-    const scored = all.map(node => {
+    // ⚡ Bolt Optimization: Removed expensive [...inner, ...outer].map().filter()
+    // 💡 What: Loop over collections directly and only allocate {node, score} for hits.
+    // 📊 Impact: Significantly reduces GC pressure and O(N) allocations for large archives.
+    const scored: { node: MemoryNode; score: number }[] = [];
+
+    const processNode = (node: MemoryNode) => {
       const nodeText = String(node.data).toLowerCase();
       let score = 0;
       tokens.forEach(token => {
         if (nodeText.includes(token)) score += 1;
       });
       score *= (1 + node.dopamine);
-      return { node, score };
-    });
+      if (score > 0.5) {
+        scored.push({ node, score });
+      }
+    };
+
+    for (const node of this.vfs.inner_spiral.nodes) processNode(node);
+    for (const node of this.vfs.outer_sweep.archive) processNode(node);
 
     return scored
-      .filter(s => s.score > 0.5)
       .sort((a, b) => b.score - a.score)
       .slice(0, limit)
       .map(s => s.node);
